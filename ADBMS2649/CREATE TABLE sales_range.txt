@@ -1,0 +1,59 @@
+CREATE TABLE sales_range
+(salesman_id NUMBER(5),
+salesman_name VARCHAR2(30),
+sales_amount NUMBER(10),
+sales_date DATE)
+PARTITION BY RANGE(sales_date)
+(
+PARTITION sales_jan2026 VALUES LESS 
+THAN(TO_DATE('01/02/2026','DD/MM/YYYY')),
+PARTITION sales_feb2026 VALUES LESS 
+THAN(TO_DATE('01/03/2026','DD/MM/YYYY')),
+PARTITION sales_march2026 VALUES LESS 
+THAN(TO_DATE('01/04/2026','DD/MM/YYYY')),
+PARTITION sales_april2026 VALUES LESS 
+THAN(TO_DATE('01/05/2026','DD/MM/YYYY'))
+);
+
+
+INSERT INTO sales_range VALUES(1,'John Smith',5000, TO_DATE('26/01/2026','DD/MM/YYYY'));
+INSERT INTO sales_range VALUES(2,'Satish Rathod',10000, TO_DATE('25/02/2026','DD/MM/YYYY'));
+INSERT INTO sales_range VALUES(3,'Khushi Chauhan',15000, TO_DATE('20/03/2026','DD/MM/YYYY'));
+INSERT INTO sales_range VALUES(4,'Vishal CHauhan',3000, TO_DATE('12/04/2026','DD/MM/YYYY'));
+INSERT INTO sales_range VALUES(5,'Shruti Kumari',15000, TO_DATE('01/01/2026','DD/MM/YYYY'));
+INSERT INTO sales_range VALUES(6,'Tejas',8000, TO_DATE('04/02/2026','DD/MM/YYYY'));
+INSERT INTO sales_range VALUES(7,'Anuj',8000, TO_DATE('06/03/2026','DD/MM/YYYY'));
+INSERT INTO sales_range VALUES(8,'Sidesh',9000, TO_DATE('06/04/2026','DD/MM/YYYY'));
+
+
+select table_name,partition_name,high_value,num_rows from user_tab_partitons where table_name='SALES_RANGE';
+
+alter table sales truncate partition sales_jan2026;
+
+
+CREATE TABLE Student (
+    student_id NUMBER(5),
+    student_name VARCHAR2(20),
+    student_dob DATE)
+PARTITION BY LIST (student_name) (
+    PARTITION stu_divA VALUES ('a','b','c','d','e','f','g','h','i','j','k'),
+    PARTITION stu_divB VALUES ('n','o','p','q','r','s','t','u','v','w','x','y','z'));
+
+INSERT INTO Student (student_id, student_name, student_dob) 
+VALUES (0321, 'a', TO_DATE('19-AUG-1958', 'dd-MON-yyyy'));
+
+alter table student add partition stu_null values(NULL);
+SELECT table_name, partition_name, high_value, num_rows 
+FROM user_tab_partitions 
+WHERE table_name = 'STUDENT';
+
+creat table sales (
+dept_no NUMber,
+part_no VArchar2(20),
+country Varchar2(20),
+date 1 DATE,
+amount NUMBER
+)\
+PARTITION BY HASH(part_no)
+(
+PARTITON
