@@ -6,4 +6,4 @@ f.readFile('newFile.txt', "utf-8",function(error,data)
     else{   
         console.log(data);
     }
-});
+}); 
