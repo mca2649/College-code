@@ -24,7 +24,7 @@ class CircularLinkedList
 		if(last = null) // list is Empty
 		{
 			last = n;
-		 	last.next = head;
+		 	last.next = last //head;
 		}
 		else
 		{
