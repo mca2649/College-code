@@ -1,0 +1,410 @@
+<?xml version="1.0" encoding="UTF-8"?><rss xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:atom="http://www.w3.org/2005/Atom" version="2.0"><channel><title><![CDATA[Spring]]></title><description><![CDATA[Level up your Java code and explore what Spring can do for you.]]></description><link>https://spring.io</link><generator>GatsbyJS</generator><lastBuildDate>Sun, 01 Nov 2026 08:21:14 GMT</lastBuildDate><item><title><![CDATA[A Bootiful Podcast: 'Data Geekery' with JOOQ creator Lukas Eder]]></title><link>https://spring.io/blog/2026/10/29/a-bootiful-podcast-lukas-eder</link><guid isPermaLink="true">https://spring.io/blog/2026/10/29/a-bootiful-podcast-lukas-eder</guid><dc:creator><![CDATA[joshlong]]></dc:creator><pubDate>Thu, 29 Oct 2026 00:00:00 GMT</pubDate><content:encoded>&lt;p&gt;Hi, Spring fans! In this conversation, Josh Long explores how JOOQ turns SQL into a type-safe, fluent Java language—making complex database work safer, cleaner, and far more expressive. They cover everything from dynamic SQL transformation and cross-dialect support to low-level security, stored procedures, views, and the realities of working with modern databases like DuckDB, ClickHouse, Redshift, and more.&lt;/p&gt;
+&lt;p&gt;Along the way, Lucas reflects on the origins of JOOQ, why he built it, and how the project has evolved from a clever Java DSL into a serious platform for enterprise-grade database development. The discussion also touches on AI-assisted debugging, the enduring relevance of SQL, and how strong typing can dramatically reduce mental overhead for developers and DBAs alike.&lt;/p&gt;
+&lt;p&gt;If you care about databases, Java, or writing better software with less friction, this episode is a masterclass in thoughtful engineering and pragmatic elegance.&lt;/p&gt;
+&lt;iframe title=&quot;”Data Geekery” with JOOQ creator Lukas Eder&quot; allowtransparency=&quot;true&quot; height=&quot;300&quot; width=&quot;100%&quot; style=&quot;border: none; min-width: min(100%, 430px);height:300px;&quot; scrolling=&quot;no&quot; data-name=&quot;pb-iframe-player&quot; src=&quot;https://www.podbean.com/player-v2/?from=embed&amp;i=xc6hq-1b98d05-pb&amp;square=1&amp;share=1&amp;download=1&amp;fonts=Arial&amp;skin=1&amp;font-color=&amp;rtl=0&amp;logo_link=&amp;btn-skin=7&amp;size=300&quot; loading=&quot;lazy&quot; allowfullscreen=&quot;&quot;&gt;&lt;/iframe&gt;</content:encoded></item><item><title><![CDATA[Spring AI 2.1 Message Parts: Reasoning That Survives the Round Trip]]></title><link>https://spring.io/blog/2026/10/28/spring-ai-message-parts-reasoning-replay</link><guid isPermaLink="true">https://spring.io/blog/2026/10/28/spring-ai-message-parts-reasoning-replay</guid><dc:creator><![CDATA[dimitarproynov]]></dc:creator><pubDate>Wed, 28 Oct 2026 00:00:00 GMT</pubDate><content:encoded>&lt;p&gt;&lt;strong&gt;Spring AI:&lt;/strong&gt; &lt;a href=&quot;https://docs.spring.io/spring-ai/reference/2.1/api/chatmodel.html#message-parts&quot;&gt;Message Parts Doc&lt;/a&gt; | &lt;a href=&quot;https://docs.spring.io/spring-ai/reference/2.1/upgrade-notes.html#upgrading-to-2-1-0&quot;&gt;Upgrade Notes&lt;/a&gt; | &lt;a href=&quot;https://docs.spring.io/spring-ai/reference/2.1/api/chat/openai-responses-chat.html&quot;&gt;OpenAI Responses Doc&lt;/a&gt; | &lt;a href=&quot;https://docs.spring.io/spring-ai/reference/2.1/api/session.html&quot;&gt;Session Doc&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;Reasoning models do more than think before they answer. They hand part of that thinking back to you and expect to get it back on the next request.
+Claude signs its thinking blocks. Gemini attaches thought signatures to its function calls. OpenAI&apos;s Responses API returns encrypted reasoning items.
+If you drop, reorder or edit them, the result ranges from an HTTP 400 to a model that quietly loses its earlier reasoning and starts over.&lt;/p&gt;
+&lt;p&gt;Until now, a Spring AI message was a piece of text with side lists of tool calls and media. There was no place for that data, let alone its order.
+Spring AI 2.1 changes the data model itself: every message now holds its content as an &lt;strong&gt;ordered list of message parts&lt;/strong&gt;.
+A part is one piece of a response, such as a run of text, a block of reasoning or a tool call. Providers call these pieces content blocks (Anthropic, Bedrock),
+parts (Gemini), items (OpenAI Responses) or chunks (Mistral), and Spring AI maps them all to message parts.&lt;/p&gt;
+&lt;p&gt;With the &lt;a href=&quot;https://spring.io/blog/2026/10/23/spring-ai-2-1-0-RC1-available-now&quot;&gt;2.1.0-RC1 release candidate&lt;/a&gt;, the major chat models produce and consume parts: OpenAI Responses, Anthropic, Google GenAI,
+OpenAI Chat Completions, Ollama, Bedrock Converse, DeepSeek and Mistral AI. The release also adds Session memory, which persists them. This post covers the new abstraction, why the
+Responses API needed it, and what each chat model gains. It comes down to three rules: keep the order, replay what you were given verbatim, and persist the parts, not the text.&lt;/p&gt;
+&lt;h2 id=&quot;why-a-string-was-not-enough&quot; style=&quot;position:relative;&quot;&gt;&lt;a href=&quot;#why-a-string-was-not-enough&quot; aria-label=&quot;why a string was not enough permalink&quot; class=&quot;anchor before&quot;&gt;&lt;svg aria-hidden=&quot;true&quot; focusable=&quot;false&quot; height=&quot;16&quot; version=&quot;1.1&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot;&gt;&lt;path fill-rule=&quot;evenodd&quot; d=&quot;M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z&quot;&gt;&lt;/path&gt;&lt;/svg&gt;&lt;/a&gt;Why a String Was Not Enough&lt;/h2&gt;
+&lt;p&gt;Here is what Claude, with thinking enabled, returns in a single tool-calling round:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;thinking   &quot;The user wants the weather in Paris. I should call get_weather...&quot;   signature: &quot;EqQBCgIYAhIM...&quot;
+text       &quot;Let me check that for you.&quot;
+tool_use   get_weather {&quot;location&quot;: &quot;Paris&quot;}
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;When you send the tool result, Anthropic wants this turn back exactly as it was: same blocks, same order, signature included. Before 2.1, &lt;code&gt;AssistantMessage&lt;/code&gt; could not do that:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;No order across kinds.&lt;/strong&gt; Text, tool calls and media lived in separate fields, so replay had to guess an order.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;No home for opaque data.&lt;/strong&gt; Signatures and encrypted reasoning are opaque: the client cannot read them and must send them back unchanged. They sat under provider-specific metadata keys or in package-private subclasses.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Streaming lost it.&lt;/strong&gt; The aggregator merged chunk metadata key by key, so thinking often survived only as its last fragment.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Memory lost it.&lt;/strong&gt; &lt;code&gt;JdbcChatMemoryRepository&lt;/code&gt; stores only the text and the message type.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2 id=&quot;the-messagepart-abstraction&quot; style=&quot;position:relative;&quot;&gt;&lt;a href=&quot;#the-messagepart-abstraction&quot; aria-label=&quot;the messagepart abstraction permalink&quot; class=&quot;anchor before&quot;&gt;&lt;svg aria-hidden=&quot;true&quot; focusable=&quot;false&quot; height=&quot;16&quot; version=&quot;1.1&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot;&gt;&lt;path fill-rule=&quot;evenodd&quot; d=&quot;M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z&quot;&gt;&lt;/path&gt;&lt;/svg&gt;&lt;/a&gt;The MessagePart Abstraction&lt;/h2&gt;
+&lt;p&gt;&lt;code&gt;AbstractMessage&lt;/code&gt; now holds a &lt;code&gt;parts: List&amp;#x3C;MessagePart&gt;&lt;/code&gt;, shared by every message type:&lt;/p&gt;
+&lt;img style=&quot;float: center; display: block; margin: auto; padding: 10px;&quot; src=&quot;https://raw.githubusercontent.com/spring-io/spring-io-static/refs/heads/main/blog/dimitarproynov/20261028/message-hierarchy.png&quot; width=&quot;1080&quot; alt=&quot;Spring AI Message API: AbstractMessage aggregates an ordered list of MessagePart entries&quot;&gt;
+&lt;p&gt;&lt;code&gt;MessagePart&lt;/code&gt; is a sealed interface with six record implementations:&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Part&lt;/th&gt;
+&lt;th&gt;Holds&lt;/th&gt;
+&lt;th&gt;Used for&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;TextPart&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;a run of text&lt;/td&gt;
+&lt;td&gt;answers, prompts&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;ReasoningPart&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;reasoning text, an optional summary, an optional payload&lt;/td&gt;
+&lt;td&gt;Claude thinking, Gemini thoughts, DeepSeek &lt;code&gt;reasoning_content&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;ToolCallPart&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;an &lt;code&gt;AssistantMessage.ToolCall&lt;/code&gt;, an optional payload&lt;/td&gt;
+&lt;td&gt;function calls&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;ToolResultPart&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;a tool result whose content is a list of other &lt;code&gt;MessagePart&lt;/code&gt;s&lt;/td&gt;
+&lt;td&gt;tool results carrying more than text&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;MediaPart&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;a &lt;code&gt;Media&lt;/code&gt;: image, audio, video, document&lt;/td&gt;
+&lt;td&gt;multimodal input and output&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;UnknownPart&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;the raw JSON of a block Spring AI does not model&lt;/td&gt;
+&lt;td&gt;server tool calls, citations, code execution&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;img style=&quot;float: center; display: block; margin: auto; padding: 10px;&quot; src=&quot;https://raw.githubusercontent.com/spring-io/spring-io-static/refs/heads/main/blog/dimitarproynov/20261028/messagepart-hierarchy.png&quot; width=&quot;1080&quot; alt=&quot;Spring AI MessagePart API: the sealed MessagePart interface, its six record implementations and the optional OpaquePayload&quot;&gt;
+&lt;p&gt;Adding MessagePart achieves:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Order is data.&lt;/strong&gt; Parts keep the order the provider produced them in, so a thinking block stays in front of the tool call it led to.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Opaque payloads are replayed, never interpreted.&lt;/strong&gt; A part can carry an &lt;code&gt;OpaquePayload(provider, kind, data)&lt;/code&gt;, such as an Anthropic &lt;code&gt;signature&lt;/code&gt;, a Gemini &lt;code&gt;thought_signature&lt;/code&gt; or an OpenAI &lt;code&gt;encrypted_content&lt;/code&gt;. The &lt;code&gt;ChatModel&lt;/code&gt; that produced it sends it back unchanged, and every other chat model skips it. This keeps a history safe to move between providers.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Nothing is dropped silently.&lt;/strong&gt; A block a &lt;code&gt;ChatModel&lt;/code&gt; does not understand becomes an &lt;code&gt;UnknownPart&lt;/code&gt; and is replayed as-is to the provider that produced it.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;The change is backward compatible. Constructors and builder methods keep working and produce parts in the order 2.0 used: text, tool calls, media.
+&lt;code&gt;getText()&lt;/code&gt;, &lt;code&gt;getToolCalls()&lt;/code&gt; and &lt;code&gt;getMedia()&lt;/code&gt; are now views over the parts, next to the new &lt;code&gt;getReasoning()&lt;/code&gt;, and &lt;code&gt;getParts()&lt;/code&gt; returns everything in order.
+Code that reads reasoning is what most likely needs an update, since each chat model exposed it differently before 2.1:&lt;/p&gt;
+&lt;pre&gt;&lt;code class=&quot;language-java&quot;&gt;ChatResponse response = chatModel.call(prompt);
+
+// Before 2.1: each chat model exposed reasoning its own way
+List&amp;#x3C;String&gt; thoughts = response.getResults().stream()              // Google GenAI
+    .filter(g -&gt; Boolean.TRUE.equals(g.getOutput().getMetadata().get(&quot;isThought&quot;)))
+    .map(g -&gt; g.getOutput().getText())
+    .toList();
+String reasoning = ((DeepSeekAssistantMessage) response.getResult().getOutput())
+    .getReasoningContent();                                          // DeepSeek
+
+// 2.1: one accessor for every chat model
+List&amp;#x3C;String&gt; thoughts = response.getResult().getOutput().getReasoning().stream()
+    .map(ReasoningPart::text)
+    .toList();
+String answer = response.getResult().getOutput().getText();          // unchanged
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;The &lt;a href=&quot;https://docs.spring.io/spring-ai/reference/2.1/upgrade-notes.html#upgrading-to-2-1-0&quot;&gt;upgrade notes&lt;/a&gt; list the remaining changes per chat model. When streaming, each part is stamped with its content block index and a &lt;code&gt;partial&lt;/code&gt; flag, and &lt;code&gt;MessageAggregator&lt;/code&gt; merges the deltas.
+The aggregated message equals the one a blocking call returns, signature included.&lt;/p&gt;
+&lt;h2 id=&quot;how-message-parts-made-the-responses-api-possible&quot; style=&quot;position:relative;&quot;&gt;&lt;a href=&quot;#how-message-parts-made-the-responses-api-possible&quot; aria-label=&quot;how message parts made the responses api possible permalink&quot; class=&quot;anchor before&quot;&gt;&lt;svg aria-hidden=&quot;true&quot; focusable=&quot;false&quot; height=&quot;16&quot; version=&quot;1.1&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot;&gt;&lt;path fill-rule=&quot;evenodd&quot; d=&quot;M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z&quot;&gt;&lt;/path&gt;&lt;/svg&gt;&lt;/a&gt;How Message Parts Made the Responses API Possible&lt;/h2&gt;
+&lt;p&gt;Spring AI implements two OpenAI chat model endpoints. &lt;code&gt;OpenAiChatModel&lt;/code&gt; uses Chat Completions, OpenAI&apos;s original chat API, which many other servers also implement.
+&lt;code&gt;OpenAiResponsesChatModel&lt;/code&gt;, new in 2.1, uses the Responses API, OpenAI&apos;s newer API for reasoning models and agents, in its stateless mode.&lt;/p&gt;
+&lt;p&gt;The Responses API does not return a message. Each call returns an &lt;code&gt;output&lt;/code&gt; array of &lt;strong&gt;items&lt;/strong&gt;: &lt;code&gt;reasoning&lt;/code&gt;, &lt;code&gt;function_call&lt;/code&gt; and &lt;code&gt;message&lt;/code&gt;, plus items
+for the tools OpenAI runs itself, such as web search. Each reasoning item carries its own id and &lt;code&gt;encrypted_content&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;OpenAiResponsesChatModel&lt;/code&gt; is stateless by design: it does not keep the conversation on OpenAI&apos;s side, but replays all of it on every call, so memory, advisors and
+RAG work exactly as they do with &lt;code&gt;OpenAiChatModel&lt;/code&gt;. For a reasoning model, the replay works well only if it includes the model&apos;s earlier reasoning. OpenAI&apos;s &lt;a href=&quot;https://developers.openai.com/api/docs/guides/reasoning&quot;&gt;reasoning guide&lt;/a&gt; asks
+for the reasoning items, function calls and function call outputs since the last user message.&lt;/p&gt;
+&lt;p&gt;Before 2.1, &lt;code&gt;AssistantMessage&lt;/code&gt; could not hold these items faithfully:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;It had no way to say &quot;reasoning, then function call, then message&quot;.&lt;/li&gt;
+&lt;li&gt;It could not attach data to a single item. Each reasoning item has an id and carries the model&apos;s reasoning in encrypted form (&lt;code&gt;encrypted_content&lt;/code&gt;), and both have to be sent back with that item. A message had only one metadata map for the whole response.&lt;/li&gt;
+&lt;li&gt;It had nowhere to keep the items of tools OpenAI runs itself, such as web search, without faking them as local tool calls.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;With parts, the mapping is one to one and keeps the order of the &lt;code&gt;output&lt;/code&gt; array:&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Responses API item&lt;/th&gt;
+&lt;th&gt;Message part&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;reasoning&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;ReasoningPart&lt;/code&gt; with the summary, &lt;code&gt;OpaquePayload(&quot;openai.responses&quot;, &quot;encrypted_content&quot;, …)&lt;/code&gt; and the item id&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;function_call&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;ToolCallPart&lt;/code&gt; with the item id&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;message&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;TextPart&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;image_generation_call&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;MediaPart&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;web search, file search, code interpreter, MCP, any other item&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;UnknownPart&lt;/code&gt; with the raw JSON&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;On the next request, the chat model rebuilds the input items from the parts in the same order. That replay is worth having. OpenAI&apos;s now archived cookbook on
+&lt;a href=&quot;https://developers.openai.com/cookbook/examples/responses_api/reasoning_items&quot;&gt;better performance from reasoning models&lt;/a&gt; reports that including reasoning items &quot;led to about a 3% improvement&quot; on SWE-bench.
+Responses is also the endpoint for agents on current OpenAI models.
+Starting with GPT-5.4, Chat Completions does not support tool calling with a reasoning effort other than &lt;code&gt;none&lt;/code&gt;.&lt;/p&gt;
+&lt;h2 id=&quot;what-each-chat-model-gains&quot; style=&quot;position:relative;&quot;&gt;&lt;a href=&quot;#what-each-chat-model-gains&quot; aria-label=&quot;what each chat model gains permalink&quot; class=&quot;anchor before&quot;&gt;&lt;svg aria-hidden=&quot;true&quot; focusable=&quot;false&quot; height=&quot;16&quot; version=&quot;1.1&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot;&gt;&lt;path fill-rule=&quot;evenodd&quot; d=&quot;M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z&quot;&gt;&lt;/path&gt;&lt;/svg&gt;&lt;/a&gt;What Each Chat Model Gains&lt;/h2&gt;
+&lt;p&gt;Every other chat model follows the same pattern: map each response block to one part, rebuild the request from the parts in order,
+and replay only its own payloads. What that buys depends on what each provider demands:&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Chat model&lt;/th&gt;
+&lt;th&gt;Now replayed&lt;/th&gt;
+&lt;th&gt;Improvement&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;Anthropic&lt;/td&gt;
+&lt;td&gt;signed and redacted thinking, in block order; server tool blocks&lt;/td&gt;
+&lt;td&gt;tool turns Claude accepts, reasoning continuity, cache hits&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Google GenAI&lt;/td&gt;
+&lt;td&gt;each thought signature on the part that carried it&lt;/td&gt;
+&lt;td&gt;no errors on Gemini 3+ function calls, full reasoning quality on other parts&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;OpenAI Chat Completions&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;reasoning_content&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;continuity on vLLM, gpt-oss, Kimi and other compatible servers&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Ollama&lt;/td&gt;
+&lt;td&gt;the &lt;code&gt;thinking&lt;/code&gt; field&lt;/td&gt;
+&lt;td&gt;continuity in gpt-oss and qwen3 tool loops&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Bedrock Converse&lt;/td&gt;
+&lt;td&gt;signed, redacted and unsigned reasoning, also when streaming&lt;/td&gt;
+&lt;td&gt;streaming tool loops with extended thinking work&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;DeepSeek&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;reasoning_content&lt;/code&gt; of streamed and restored messages&lt;/td&gt;
+&lt;td&gt;no errors in thinking mode with tools&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Mistral AI&lt;/td&gt;
+&lt;td&gt;thinking chunks, in chunk order&lt;/td&gt;
+&lt;td&gt;the output quality Mistral says is lost without them&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h3 id=&quot;anthropic&quot; style=&quot;position:relative;&quot;&gt;&lt;a href=&quot;#anthropic&quot; aria-label=&quot;anthropic permalink&quot; class=&quot;anchor before&quot;&gt;&lt;svg aria-hidden=&quot;true&quot; focusable=&quot;false&quot; height=&quot;16&quot; version=&quot;1.1&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot;&gt;&lt;path fill-rule=&quot;evenodd&quot; d=&quot;M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z&quot;&gt;&lt;/path&gt;&lt;/svg&gt;&lt;/a&gt;Anthropic&lt;/h3&gt;
+&lt;p&gt;Within a tool-use turn, Claude requires its thinking blocks back, and you &lt;a href=&quot;https://platform.claude.com/docs/en/build-with-claude/thinking#preserving-thinking-blocks&quot;&gt;&quot;can&apos;t rearrange, edit, or partially drop them&quot;&lt;/a&gt;: modified
+blocks are rejected with an HTTP 400. Before 2.1, Spring AI rebuilt the turn as text, then thinking, then tool use, whatever order Claude had used.
+It also dropped server tool blocks, and the streamed thinking never fully reached the aggregated message. Now every block is one part, replayed in order with its signature.
+Anthropic names two more gains: preserved thinking &quot;lets Claude continue reasoning from where it left off&quot;, and preserved thinking blocks &quot;enable cache hits during tool use&quot;.
+Claude Opus 4.5 and later, and Sonnet 4.6 and later, also keep earlier turns&apos; thinking in context, which is where Session memory comes in.&lt;/p&gt;
+&lt;h3 id=&quot;google-genai&quot; style=&quot;position:relative;&quot;&gt;&lt;a href=&quot;#google-genai&quot; aria-label=&quot;google genai permalink&quot; class=&quot;anchor before&quot;&gt;&lt;svg aria-hidden=&quot;true&quot; focusable=&quot;false&quot; height=&quot;16&quot; version=&quot;1.1&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot;&gt;&lt;path fill-rule=&quot;evenodd&quot; d=&quot;M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z&quot;&gt;&lt;/path&gt;&lt;/svg&gt;&lt;/a&gt;Google GenAI&lt;/h3&gt;
+&lt;p&gt;Google&apos;s &lt;a href=&quot;https://ai.google.dev/gemini-api/docs/generate-content/thought-signatures&quot;&gt;thought signatures guide&lt;/a&gt; says to return each signature &quot;in the exact part where it was received&quot;. On Gemini 3 and later,
+a missing signature on a function call fails the request &quot;with a 400 error&quot;. On other parts, &quot;performance may degrade&quot;. Spring AI previously
+collected all signatures in one list and reattached them to function calls by position. It also dropped the thoughts and text in front
+of a function call from the tool loop. Now each signature travels on its own part, and code execution and server-side tool parts are sent back as received.&lt;/p&gt;
+&lt;h3 id=&quot;openai-chat-completions&quot; style=&quot;position:relative;&quot;&gt;&lt;a href=&quot;#openai-chat-completions&quot; aria-label=&quot;openai chat completions permalink&quot; class=&quot;anchor before&quot;&gt;&lt;svg aria-hidden=&quot;true&quot; focusable=&quot;false&quot; height=&quot;16&quot; version=&quot;1.1&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot;&gt;&lt;path fill-rule=&quot;evenodd&quot; d=&quot;M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z&quot;&gt;&lt;/path&gt;&lt;/svg&gt;&lt;/a&gt;OpenAI Chat Completions&lt;/h3&gt;
+&lt;p&gt;OpenAI&apos;s own Chat Completions API returns no reasoning text, so Responses should be used for OpenAI reasoning models. &lt;code&gt;OpenAiChatModel&lt;/code&gt; serves the
+compatible servers that do return &lt;code&gt;reasoning_content&lt;/code&gt;, such as vLLM, gpt-oss deployments and Kimi. OpenAI&apos;s &lt;a href=&quot;https://developers.openai.com/cookbook/articles/openai-harmony&quot;&gt;harmony guide&lt;/a&gt; asks you
+to pass gpt-oss&apos;s chain of thought back during tool calling. That replay already existed in 2.0.x, through a metadata key. It now rides on parts,
+so it survives persistence.
+Reasoning signed by another provider is never forwarded, and for servers that reject the field there is &lt;code&gt;replayReasoningContent(false)&lt;/code&gt;.&lt;/p&gt;
+&lt;h3 id=&quot;ollama&quot; style=&quot;position:relative;&quot;&gt;&lt;a href=&quot;#ollama&quot; aria-label=&quot;ollama permalink&quot; class=&quot;anchor before&quot;&gt;&lt;svg aria-hidden=&quot;true&quot; focusable=&quot;false&quot; height=&quot;16&quot; version=&quot;1.1&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot;&gt;&lt;path fill-rule=&quot;evenodd&quot; d=&quot;M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z&quot;&gt;&lt;/path&gt;&lt;/svg&gt;&lt;/a&gt;Ollama&lt;/h3&gt;
+&lt;p&gt;Before 2.1, thinking lived only in response metadata and was never sent back. When streaming, only its last fragment survived.
+Now it is replayed in the assistant message&apos;s &lt;code&gt;thinking&lt;/code&gt; field, as Ollama&apos;s &lt;a href=&quot;https://docs.ollama.com/capabilities/tool-calling&quot;&gt;tool calling docs&lt;/a&gt; ask:
+&quot;return those fields together with any tool results in the follow-up request&quot;. The gain depends on the model.
+The gpt-oss and qwen3 templates use the reasoning of the current tool loop.&lt;/p&gt;
+&lt;h3 id=&quot;bedrock-converse&quot; style=&quot;position:relative;&quot;&gt;&lt;a href=&quot;#bedrock-converse&quot; aria-label=&quot;bedrock converse permalink&quot; class=&quot;anchor before&quot;&gt;&lt;svg aria-hidden=&quot;true&quot; focusable=&quot;false&quot; height=&quot;16&quot; version=&quot;1.1&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot;&gt;&lt;path fill-rule=&quot;evenodd&quot; d=&quot;M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z&quot;&gt;&lt;/path&gt;&lt;/svg&gt;&lt;/a&gt;Bedrock Converse&lt;/h3&gt;
+&lt;p&gt;Bedrock applies the Claude rule: &lt;a href=&quot;https://docs.aws.amazon.com/bedrock/latest/userguide/claude-messages-extended-thinking.html&quot;&gt;&quot;During tool use, you must pass thinking blocks back to the API for the last assistant message&quot;&lt;/a&gt;.
+&lt;code&gt;BedrockProxyChatModel&lt;/code&gt; previously dropped reasoning from streamed responses. Now a response is a single generation of parts in block order,
+streams carry the reasoning, the signature and redacted reasoning, and unsigned reasoning from gpt-oss is replayed too.&lt;/p&gt;
+&lt;h3 id=&quot;deepseek&quot; style=&quot;position:relative;&quot;&gt;&lt;a href=&quot;#deepseek&quot; aria-label=&quot;deepseek permalink&quot; class=&quot;anchor before&quot;&gt;&lt;svg aria-hidden=&quot;true&quot; focusable=&quot;false&quot; height=&quot;16&quot; version=&quot;1.1&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot;&gt;&lt;path fill-rule=&quot;evenodd&quot; d=&quot;M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z&quot;&gt;&lt;/path&gt;&lt;/svg&gt;&lt;/a&gt;DeepSeek&lt;/h3&gt;
+&lt;p&gt;In &lt;a href=&quot;https://api-docs.deepseek.com/guides/thinking_mode/&quot;&gt;thinking mode&lt;/a&gt;, a request that carries tools must pass back the &lt;code&gt;reasoning_content&lt;/code&gt; of earlier assistant messages, or the
+API returns a 400. Before 2.1, Spring AI sent it only for &lt;code&gt;DeepSeekAssistantMessage&lt;/code&gt; instances, so streamed responses and messages restored
+from memory went out without it. Now any assistant message replays its &lt;code&gt;ReasoningPart&lt;/code&gt;s, streamed or not, and &lt;code&gt;DeepSeekAssistantMessage&lt;/code&gt;
+is deprecated.&lt;/p&gt;
+&lt;h3 id=&quot;mistral-ai&quot; style=&quot;position:relative;&quot;&gt;&lt;a href=&quot;#mistral-ai&quot; aria-label=&quot;mistral ai permalink&quot; class=&quot;anchor before&quot;&gt;&lt;svg aria-hidden=&quot;true&quot; focusable=&quot;false&quot; height=&quot;16&quot; version=&quot;1.1&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot;&gt;&lt;path fill-rule=&quot;evenodd&quot; d=&quot;M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z&quot;&gt;&lt;/path&gt;&lt;/svg&gt;&lt;/a&gt;Mistral AI&lt;/h3&gt;
+&lt;p&gt;Mistral&apos;s &lt;a href=&quot;https://docs.mistral.ai/studio/conversations/reasoning&quot;&gt;reasoning docs&lt;/a&gt; say: &quot;always replay the full assistant message (including &lt;code&gt;ThinkChunk&lt;/code&gt;)&quot;. They warn that dropping
+the reasoning trace &quot;degrades model performance&quot;. Before 2.1, &lt;code&gt;MistralAiChatModel&lt;/code&gt; never sent thinking back. Now thinking, text, citation
+and image chunks become parts and are replayed in chunk order, including between the rounds of a tool loop.&lt;/p&gt;
+&lt;h2 id=&quot;memory-that-keeps-the-parts-spring-ai-session&quot; style=&quot;position:relative;&quot;&gt;&lt;a href=&quot;#memory-that-keeps-the-parts-spring-ai-session&quot; aria-label=&quot;memory that keeps the parts spring ai session permalink&quot; class=&quot;anchor before&quot;&gt;&lt;svg aria-hidden=&quot;true&quot; focusable=&quot;false&quot; height=&quot;16&quot; version=&quot;1.1&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot;&gt;&lt;path fill-rule=&quot;evenodd&quot; d=&quot;M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z&quot;&gt;&lt;/path&gt;&lt;/svg&gt;&lt;/a&gt;Memory That Keeps the Parts: Spring AI Session&lt;/h2&gt;
+&lt;p&gt;Replay inside one &lt;code&gt;ChatClient&lt;/code&gt; call is half the story. Between calls, the history lives in chat memory, and of the &lt;code&gt;ChatMemory&lt;/code&gt; repositories only the in-memory one keeps the parts.
+With any other, the model reasons from scratch on each restored turn.&lt;/p&gt;
+&lt;p&gt;&lt;a href=&quot;https://spring.io/blog/2026/04/15/spring-ai-session-management&quot;&gt;Spring AI Session&lt;/a&gt;, now part of Spring AI 2.1, closes that gap.
+A session is an append-only event log. Each message is stored as its full list of parts, payloads and attributes included, and
+the JDBC store keeps them as JSON. &lt;code&gt;JdbcChatMemoryRepository&lt;/code&gt;, the JDBC store behind &lt;code&gt;ChatMemory&lt;/code&gt;, keeps only the text and drops tool calls and tool results entirely.
+Two more properties matter for reasoning models:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Every tool round is recorded.&lt;/strong&gt; &lt;code&gt;SessionMemoryAdvisor&lt;/code&gt; runs inside the tool-calling loop, so it stores each round&apos;s tool calls and results, not just the final answer. Each round&apos;s prompt is rebuilt from the session, so signatures make the round trip through the store.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Compaction respects turns.&lt;/strong&gt; When the history is trimmed or summarized, the cut always lands on a turn boundary. A tool call never loses its result, and the reasoning in front of it stays with it.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Add the &lt;code&gt;spring-ai-starter-model-session-jdbc&lt;/code&gt; starter, register the session advisors and pass a session id on each call:&lt;/p&gt;
+&lt;pre&gt;&lt;code class=&quot;language-java&quot;&gt;@Bean
+ChatClient chatClient(ChatClient.Builder builder, SessionService sessionService) {
+    return builder
+        .defaultAdvisors(SessionAdvisors.builder(sessionService)
+            .compaction(new TurnCountTrigger(20),
+                    WindowCompactionStrategy.builder().lastTurns(10).build())
+            .build())
+        .build();
+}
+
+String answer = chatClient.prompt()
+    .user(&quot;Find the cheapest flight to Lisbon next Friday&quot;)
+    .advisors(SessionAdvisors.session(&quot;session-42&quot;))
+    .call()
+    .content();
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;With this in place, the gains above carry across calls and restarts. Claude still sees its earlier thinking,
+Gemini gets each signature back on the right part, and DeepSeek&apos;s thinking-mode rule holds after a redeploy.
+&lt;code&gt;ChatMemory&lt;/code&gt; and its repositories are deprecated in 2.1 and will be removed in 3.0.0. The &lt;a href=&quot;https://docs.spring.io/spring-ai/reference/2.1/api/chat-memory.html#chat-memory-migration&quot;&gt;migration guide&lt;/a&gt; maps one API onto the other.&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;h3 id=&quot;?-things-to-know&quot; style=&quot;position:relative;&quot;&gt;&lt;a href=&quot;#%EF%B8%8F-things-to-know&quot; aria-label=&quot;? things to know permalink&quot; class=&quot;anchor before&quot;&gt;&lt;svg aria-hidden=&quot;true&quot; focusable=&quot;false&quot; height=&quot;16&quot; version=&quot;1.1&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot;&gt;&lt;path fill-rule=&quot;evenodd&quot; d=&quot;M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z&quot;&gt;&lt;/path&gt;&lt;/svg&gt;&lt;/a&gt;?? Things to know&lt;/h3&gt;
+&lt;p&gt;&lt;strong&gt;One generation per response.&lt;/strong&gt; Before 2.1, Anthropic, Google GenAI and Bedrock Converse split a response into separate &lt;code&gt;Generation&lt;/code&gt;s for thinking, tool calls and text. They now return one per candidate. Read reasoning with &lt;code&gt;getResult().getOutput().getReasoning()&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Histories stored before 2.1 have no reasoning parts.&lt;/strong&gt; Messages that an earlier version wrote to chat memory come back without their reasoning, so it is not replayed.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Cross-provider history is safe, not lossless.&lt;/strong&gt; Reasoning signed by one provider is never sent to another. When you switch models mid-conversation, the text and tool calls carry over, but the other vendor&apos;s reasoning does not.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Keep part attributes.&lt;/strong&gt; Mistral, and Bedrock for unsigned reasoning, replay reasoning only when the part&apos;s &lt;code&gt;provider&lt;/code&gt; attribute names them. If you store history yourself, don&apos;t strip attributes.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;h2 id=&quot;conclusion&quot; style=&quot;position:relative;&quot;&gt;&lt;a href=&quot;#conclusion&quot; aria-label=&quot;conclusion permalink&quot; class=&quot;anchor before&quot;&gt;&lt;svg aria-hidden=&quot;true&quot; focusable=&quot;false&quot; height=&quot;16&quot; version=&quot;1.1&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot;&gt;&lt;path fill-rule=&quot;evenodd&quot; d=&quot;M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z&quot;&gt;&lt;/path&gt;&lt;/svg&gt;&lt;/a&gt;Conclusion&lt;/h2&gt;
+&lt;p&gt;Message parts turn a Spring AI message from a string with attachments into a faithful record of what the model produced and in what order.
+The key insights:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Order is part of the data.&lt;/strong&gt; Reasoning models check the order and integrity of what you send back. A string with side lists can carry neither.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Replay what you were given, verbatim.&lt;/strong&gt; &lt;code&gt;OpaquePayload&lt;/code&gt; lets each chat model return its own signatures unchanged and skip everyone else&apos;s.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Persist the parts, not the text.&lt;/strong&gt; Session memory stores every part of every tool round, so reasoning survives across calls and restarts.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&quot;resources&quot; style=&quot;position:relative;&quot;&gt;&lt;a href=&quot;#resources&quot; aria-label=&quot;resources permalink&quot; class=&quot;anchor before&quot;&gt;&lt;svg aria-hidden=&quot;true&quot; focusable=&quot;false&quot; height=&quot;16&quot; version=&quot;1.1&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot;&gt;&lt;path fill-rule=&quot;evenodd&quot; d=&quot;M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z&quot;&gt;&lt;/path&gt;&lt;/svg&gt;&lt;/a&gt;Resources&lt;/h2&gt;
+&lt;p&gt;&lt;strong&gt;Spring AI&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&quot;https://docs.spring.io/spring-ai/reference/2.1/api/chatmodel.html#message-parts&quot;&gt;Message Parts&lt;/a&gt; and &lt;a href=&quot;https://docs.spring.io/spring-ai/reference/2.1/upgrade-notes.html#upgrading-to-2-1-0&quot;&gt;Upgrading to 2.1.0&lt;/a&gt;, with per-provider changes&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;https://docs.spring.io/spring-ai/reference/2.1/api/chat/openai-responses-chat.html&quot;&gt;OpenAI Responses&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;https://docs.spring.io/spring-ai/reference/2.1/api/session.html&quot;&gt;Session memory&lt;/a&gt; and &lt;a href=&quot;https://docs.spring.io/spring-ai/reference/2.1/api/chat-memory.html#chat-memory-migration&quot;&gt;Migrating to Session Memory&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;Related Spring AI articles&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&quot;https://spring.io/blog/2026/04/15/spring-ai-session-management&quot;&gt;Spring AI Agentic Patterns (Part 7): Session API&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;</content:encoded></item><item><title><![CDATA[Using Your Own Embeddings in Spring AI 2.1]]></title><link>https://spring.io/blog/2026/10/28/spring-ai-upsert-own-embeddings</link><guid isPermaLink="true">https://spring.io/blog/2026/10/28/spring-ai-upsert-own-embeddings</guid><dc:creator><![CDATA[sobychacko]]></dc:creator><pubDate>Wed, 28 Oct 2026 00:00:00 GMT</pubDate><content:encoded>&lt;p&gt;&lt;code&gt;VectorStore.add()&lt;/code&gt; takes text documents, generates embeddings with the store&apos;s configured model, and saves both.
+Spring AI 2.1 adds &lt;code&gt;upsert&lt;/code&gt; for applications that already have embeddings or generate them from images, video, or audio.
+It accepts documents paired with application-supplied vectors, without calling the store&apos;s embedding model.
+A new &lt;code&gt;similaritySearch&lt;/code&gt; overload also accepts a query embedding, giving applications control over both indexing and searching.&lt;/p&gt;
+&lt;h2 id=&quot;when-to-supply-your-own-embeddings&quot; style=&quot;position:relative;&quot;&gt;&lt;a href=&quot;#when-to-supply-your-own-embeddings&quot; aria-label=&quot;when to supply your own embeddings permalink&quot; class=&quot;anchor before&quot;&gt;&lt;svg aria-hidden=&quot;true&quot; focusable=&quot;false&quot; height=&quot;16&quot; version=&quot;1.1&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot;&gt;&lt;path fill-rule=&quot;evenodd&quot; d=&quot;M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z&quot;&gt;&lt;/path&gt;&lt;/svg&gt;&lt;/a&gt;When to supply your own embeddings&lt;/h2&gt;
+&lt;p&gt;Let&apos;s look at a real-world example.
+Consider a furniture catalog with a product listed as &quot;Armchair, model A42&quot;.
+Its photo shows green velvet upholstery and wooden legs, but a search for &quot;green velvet armchair&quot; could miss it if those details are absent from the description.&lt;/p&gt;
+&lt;p&gt;A multimodal embedding model produces image and text embeddings that can be compared directly, letting the search match the customer&apos;s words to the photo.
+The application stores photo embeddings with &lt;code&gt;upsert&lt;/code&gt;, then embeds search text with the same model to find the closest matches.&lt;/p&gt;
+&lt;p&gt;Video or audio search works similarly if the model supports comparing that content with text queries.
+For example, store an embedding for a training video segment about replacing a filter (04:00 to 04:30), with the video URL and start and end times in metadata.
+A search for &quot;how to replace the filter&quot; can then return a result that the application opens at 04:00.&lt;/p&gt;
+&lt;p&gt;Existing text embeddings benefit too, whether they come from a provider&apos;s batch API, another team, or a database migration.
+&lt;code&gt;add()&lt;/code&gt; would generate them again.
+Writing directly to the database avoids that, but requires matching Spring AI&apos;s field names and formats for IDs, text, metadata, and vectors so it can read and search the records.
+&lt;code&gt;upsert&lt;/code&gt; handles that storage format for you.&lt;/p&gt;
+&lt;h2 id=&quot;indexing-product-images&quot; style=&quot;position:relative;&quot;&gt;&lt;a href=&quot;#indexing-product-images&quot; aria-label=&quot;indexing product images permalink&quot; class=&quot;anchor before&quot;&gt;&lt;svg aria-hidden=&quot;true&quot; focusable=&quot;false&quot; height=&quot;16&quot; version=&quot;1.1&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot;&gt;&lt;path fill-rule=&quot;evenodd&quot; d=&quot;M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z&quot;&gt;&lt;/path&gt;&lt;/svg&gt;&lt;/a&gt;Indexing product images&lt;/h2&gt;
+&lt;p&gt;For the furniture catalog, let&apos;s assume that we are using Spring AI&apos;s &lt;code&gt;VertexAiMultimodalEmbeddingModel&lt;/code&gt;, which supports text, images, and video.
+The examples below use these two fields:&lt;/p&gt;
+&lt;pre&gt;&lt;code class=&quot;language-java&quot;&gt;private final VertexAiMultimodalEmbeddingModel multimodal;
+
+private final VectorStore vectorStore;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;First, we generate an embedding for a product photo and pair it with the document we want to store:&lt;/p&gt;
+&lt;pre&gt;&lt;code class=&quot;language-java&quot;&gt;Document photo = Document.builder()
+    .media(new Media(MimeTypeUtils.IMAGE_JPEG, product.photo()))
+    .build();
+float[] vector = this.multimodal.call(new DocumentEmbeddingRequest(photo)).getResult().getOutput();
+
+Document row = Document.builder()
+    .id(UUID.nameUUIDFromBytes(product.sku().getBytes(UTF_8)).toString())
+    .text(&quot;&quot;)
+    .metadata(DocumentMetadata.CONTENT_REF.value(), product.photoUrl())
+    .metadata(&quot;sku&quot;, product.sku())
+    .metadata(&quot;inStock&quot;, product.inStock())
+    .build();
+
+this.vectorStore.upsert(List.of(new EmbeddedDocument(row, vector)));
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;code&gt;photo&lt;/code&gt; carries the image sent to the model; &lt;code&gt;row&lt;/code&gt; holds the product metadata and photo reference.
+&lt;code&gt;EmbeddedDocument&lt;/code&gt; pairs &lt;code&gt;row&lt;/code&gt; with the image embedding (the &lt;code&gt;vector&lt;/code&gt;).&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;Document&lt;/code&gt; requires text or media.
+Current vector store implementations persist an ID, text, metadata, and a vector, and use those fields to reconstruct search results.
+They reject media documents such as &lt;code&gt;photo&lt;/code&gt; because they cannot persist its media content.
+Using &lt;code&gt;.text(&quot;&quot;)&lt;/code&gt; above keeps &lt;code&gt;row&lt;/code&gt; valid while the photo stays in external storage; &lt;code&gt;upsert&lt;/code&gt; never embeds that empty text.
+A product description in &lt;code&gt;.text(...)&lt;/code&gt; would be saved and returned with search results, but &lt;code&gt;upsert&lt;/code&gt; would still use the supplied image embedding without embedding the description.&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;DocumentMetadata.CONTENT_REF&lt;/code&gt; holds the photo&apos;s URL in metadata.
+The application uses it to display search results; Spring AI does not fetch the photo.&lt;/p&gt;
+&lt;p&gt;Before running this example, make sure the vector store&apos;s dimensions match the model&apos;s output.
+For 1408-dimensional embeddings, for example, set PGvector&apos;s &lt;code&gt;spring.ai.vectorstore.pgvector.dimensions=1408&lt;/code&gt;, or use &lt;code&gt;dimensions(1408)&lt;/code&gt; on its builder.
+An existing table&apos;s vector column must also have a compatible dimension.&lt;/p&gt;
+&lt;h2 id=&quot;searching-with-a-query-embedding&quot; style=&quot;position:relative;&quot;&gt;&lt;a href=&quot;#searching-with-a-query-embedding&quot; aria-label=&quot;searching with a query embedding permalink&quot; class=&quot;anchor before&quot;&gt;&lt;svg aria-hidden=&quot;true&quot; focusable=&quot;false&quot; height=&quot;16&quot; version=&quot;1.1&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot;&gt;&lt;path fill-rule=&quot;evenodd&quot; d=&quot;M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z&quot;&gt;&lt;/path&gt;&lt;/svg&gt;&lt;/a&gt;Searching with a query embedding&lt;/h2&gt;
+&lt;p&gt;Embed the customer&apos;s search text with the same multimodal model:&lt;/p&gt;
+&lt;pre&gt;&lt;code class=&quot;language-java&quot;&gt;float[] query = this.multimodal.call(new DocumentEmbeddingRequest(new Document(&quot;green velvet armchair&quot;)))
+    .getResult()
+    .getOutput();
+
+List&amp;#x3C;Document&gt; chairs = this.vectorStore.similaritySearch(query,
+        SearchRequest.builder().topK(12).filterExpression(&quot;inStock == true&quot;).build());
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;code&gt;similaritySearch(float[], SearchRequest)&lt;/code&gt; uses the supplied vector without calling the store&apos;s embedding model.
+The request controls &lt;code&gt;topK&lt;/code&gt;, the similarity threshold, and metadata filters; any query text is ignored.&lt;/p&gt;
+&lt;p&gt;Generate the product image and query text embeddings with a model designed to compare images and text.
+Using an unrelated model for queries can produce meaningless results, even if its embeddings have the same number of dimensions.
+Keep this in mind when using the overload that accepts query text: it uses the store&apos;s configured embedding model.&lt;/p&gt;
+&lt;p&gt;Follow the model&apos;s recommended input settings for indexing content and embedding queries; using the wrong setting can reduce search relevance.
+If you later change models, you may need to regenerate stored embeddings.
+Keeping the model name and version in metadata helps identify which documents need updating.&lt;/p&gt;
+&lt;h2 id=&quot;updating-existing-documents&quot; style=&quot;position:relative;&quot;&gt;&lt;a href=&quot;#updating-existing-documents&quot; aria-label=&quot;updating existing documents permalink&quot; class=&quot;anchor before&quot;&gt;&lt;svg aria-hidden=&quot;true&quot; focusable=&quot;false&quot; height=&quot;16&quot; version=&quot;1.1&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot;&gt;&lt;path fill-rule=&quot;evenodd&quot; d=&quot;M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z&quot;&gt;&lt;/path&gt;&lt;/svg&gt;&lt;/a&gt;Updating existing documents&lt;/h2&gt;
+&lt;p&gt;&lt;code&gt;upsert&lt;/code&gt; inserts documents with new IDs and replaces those with existing IDs, so stable IDs derived from product SKUs, as in the example above, let the indexing job update photos without creating duplicates.
+This replacement contract applies to every supporting store; with &lt;code&gt;add()&lt;/code&gt;, behavior for repeated IDs depends on the store.&lt;/p&gt;
+&lt;p&gt;Each &lt;code&gt;upsert&lt;/code&gt; call accepts a list of documents paired with their embeddings.
+An empty list returns without writing anything.
+Writes within a single call are not guaranteed to be transactional: if one fails, the call throws an exception, but some documents may already have been written.
+After resolving the cause, retry the entire list with the same IDs and input.&lt;/p&gt;
+&lt;h2 id=&quot;vector-validation&quot; style=&quot;position:relative;&quot;&gt;&lt;a href=&quot;#vector-validation&quot; aria-label=&quot;vector validation permalink&quot; class=&quot;anchor before&quot;&gt;&lt;svg aria-hidden=&quot;true&quot; focusable=&quot;false&quot; height=&quot;16&quot; version=&quot;1.1&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot;&gt;&lt;path fill-rule=&quot;evenodd&quot; d=&quot;M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z&quot;&gt;&lt;/path&gt;&lt;/svg&gt;&lt;/a&gt;Vector validation&lt;/h2&gt;
+&lt;p&gt;&lt;code&gt;EmbeddedDocument&lt;/code&gt; rejects empty vectors and non-finite values (&lt;code&gt;NaN&lt;/code&gt; or infinity) at construction.
+When the store knows its index dimension, it checks every vector in the list before writing, so a mismatch prevents any writes.
+These checks cannot detect incompatible embedding spaces.&lt;/p&gt;
+&lt;p&gt;Spring AI gets the expected vector size from configuration or by reading the existing index, table, or collection.
+The embedding model is consulted for dimensions only when creating an index without an explicit size.&lt;/p&gt;
+&lt;p&gt;If Spring AI cannot read the index&apos;s expected vector size and none is configured, stores other than Redis still send the vectors to the database, which applies its own size checks.
+Spring AI tries to read the expected size again on the next call.&lt;/p&gt;
+&lt;p&gt;Redis can save a vector of the wrong size without reporting an error, but that document will not appear in vector search results.
+To prevent this, &lt;code&gt;RedisVectorStore&lt;/code&gt; throws before writing when it cannot determine the expected size.
+Configure &lt;code&gt;dimensions&lt;/code&gt; to match the Redis index, or make sure the index exists and is readable, then retry.&lt;/p&gt;
+&lt;h2 id=&quot;vector-store-support&quot; style=&quot;position:relative;&quot;&gt;&lt;a href=&quot;#vector-store-support&quot; aria-label=&quot;vector store support permalink&quot; class=&quot;anchor before&quot;&gt;&lt;svg aria-hidden=&quot;true&quot; focusable=&quot;false&quot; height=&quot;16&quot; version=&quot;1.1&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot;&gt;&lt;path fill-rule=&quot;evenodd&quot; d=&quot;M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z&quot;&gt;&lt;/path&gt;&lt;/svg&gt;&lt;/a&gt;Vector store support&lt;/h2&gt;
+&lt;p&gt;&lt;code&gt;VectorStore.upsert(List&amp;#x3C;EmbeddedDocument&gt;)&lt;/code&gt; and &lt;code&gt;VectorStoreRetriever.similaritySearch(float[], SearchRequest)&lt;/code&gt; are opt-in default methods that throw &lt;code&gt;UnsupportedOperationException&lt;/code&gt; until implemented.
+Existing store implementations continue to compile.&lt;/p&gt;
+&lt;p&gt;As of Spring AI 2.1.0-RC1, &lt;code&gt;PGvector&lt;/code&gt;, &lt;code&gt;Redis&lt;/code&gt;, &lt;code&gt;Elasticsearch&lt;/code&gt;, &lt;code&gt;Qdrant&lt;/code&gt;, and &lt;code&gt;OpenSearch&lt;/code&gt; support both &lt;code&gt;upsert&lt;/code&gt; and searching with a query embedding.&lt;/p&gt;
+&lt;p&gt;For stores extending &lt;code&gt;AbstractObservationVectorStore&lt;/code&gt;, implement &lt;code&gt;doUpsert&lt;/code&gt; and &lt;code&gt;doSimilaritySearch(float[], SearchRequest)&lt;/code&gt;, and override &lt;code&gt;supportsUpsert()&lt;/code&gt; and &lt;code&gt;supportsQueryEmbeddingSearch()&lt;/code&gt; to return &lt;code&gt;true&lt;/code&gt;.
+The base class checks support before creating observations and records &lt;code&gt;upsert&lt;/code&gt; as a separate operation in vector store metrics.&lt;/p&gt;
+&lt;p&gt;Existing applications can continue using &lt;code&gt;add()&lt;/code&gt; to have the store generate embeddings for text documents.&lt;/p&gt;
+&lt;h2 id=&quot;getting-started&quot; style=&quot;position:relative;&quot;&gt;&lt;a href=&quot;#getting-started&quot; aria-label=&quot;getting started permalink&quot; class=&quot;anchor before&quot;&gt;&lt;svg aria-hidden=&quot;true&quot; focusable=&quot;false&quot; height=&quot;16&quot; version=&quot;1.1&quot; viewBox=&quot;0 0 16 16&quot; width=&quot;16&quot;&gt;&lt;path fill-rule=&quot;evenodd&quot; d=&quot;M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z&quot;&gt;&lt;/path&gt;&lt;/svg&gt;&lt;/a&gt;Getting started&lt;/h2&gt;
+&lt;p&gt;For more details, see the reference documentation on &lt;a href=&quot;https://docs.spring.io/spring-ai/reference/2.1/api/vectordbs.html#writing-precomputed-embeddings&quot;&gt;writing your own embeddings&lt;/a&gt; and &lt;a href=&quot;https://docs.spring.io/spring-ai/reference/2.1/api/vectordbs.html#searching-with-precomputed-embeddings&quot;&gt;searching with a query embedding&lt;/a&gt;.
+Thanks to &lt;a href=&quot;https://github.com/aniketg-21&quot;&gt;Aniket Gupta&lt;/a&gt;, whose proposal in &lt;a href=&quot;https://github.com/spring-projects/spring-ai/pull/3541&quot;&gt;#3541&lt;/a&gt; started this work.&lt;/p&gt;
+&lt;p&gt;Try these APIs and share feedback through &lt;a href=&quot;https://github.com/spring-projects/spring-ai/issues&quot;&gt;GitHub issues&lt;/a&gt;.&lt;/p&gt;</content:encoded></item><item><title><![CDATA[This Week in Spring - October 27th, 2026]]></title><link>https://spring.io/blog/2026/10/27/this-week-in-spring-october-27th-2026</link><guid isPermaLink="true">https://spring.io/blog/2026/10/27/this-week-in-spring-october-27th-2026</guid><dc:creator><![CDATA[joshlong]]></dc:creator><pubDate>Tue, 27 Oct 2026 00:00:00 GMT</pubDate><content:encoded>&lt;p&gt;Hi, Spring fans! Welcome to another installment of &lt;em&gt;This Week in Spring&lt;/em&gt;, which I write from the paradise-like environs Barcelona, Spain, where I was lucky enough to be a part of the amazing Vaadin Create event today and tomorrow. It&apos;s been an amazing few days, but those few days are just a small part of the week, and what a week it&apos;s been! Let&apos;s dive into the the weekly roundup!&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;yet another amazing post from Craig Walls in &lt;a href=&quot;https://www.linkedin.com/pulse/spring-ai-recipe-speeding-up-rag-faster-embeddings-craig-walls-xhvfc?trk=public_post_feed-article-content&quot;&gt;his ongoing series looking at Spring Ai&lt;/a&gt; - &lt;em&gt;Speeding Up RAG with Faster Embeddings&lt;/em&gt;&lt;/li&gt;
+&lt;li&gt;and &lt;em&gt;another one&lt;/em&gt; (DJ Khalid!): &lt;a href=&quot;https://www.linkedin.com/pulse/spring-ai-recipe-rendering-rich-uis-mcpapps-craig-walls-ig3zc/&quot;&gt;&lt;em&gt;Rendering Rich UIs with MCP Apps&lt;/em&gt;&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;I am so curious about the wide and wonderful world of agentic development these days. I was especially keen on learning how Netflix made AI coding agents &lt;a href=&quot;https://www.linkedin.com/posts/alekseystukalov_how-netflix-made-ai-coding-agents-more-efficient-activity-7516453180310757376-HORi?rcm=ACoAAACXdIABb8VbfXttpb7WA9oliQsXOS5rEgw&quot;&gt;more efficient with JetBrains IDE intelligence&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;speaking of JetBrains, I was overjoyed to talk to JetBrains&apos; Anton Arhipov last week about the &lt;a href=&quot;https://spring.io/blog/2026/10/22/a-bootiful-podcast-anton-arhipov&quot;&gt;amazing world of AI Development with JetBrains IDEs&lt;/a&gt; in &lt;em&gt;A Bootiful Podcast&lt;/em&gt;.&lt;/li&gt;
+&lt;li&gt;did u every want to add a reasoning model to your Spring Boot application &lt;a href=&quot;https://x.com/qxoticai/status/2110128789875220750?s=20&quot;&gt;as a plain Mavend dependency? Well, now you can with Quixotic AI&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;there have been a &lt;em&gt;ton&lt;/em&gt; of new releases! Get the bits while they&apos;re hot! &lt;a href=&quot;https://spring.io/blog/2026/10/23/spring-ai-2-1-0-RC1-available-now&quot;&gt;Spring AI 2.1.0-RC1 and 2.0.2 available now&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;https://spring.io/blog/2026/10/23/spring-boot-4-0-9-available-now&quot;&gt;SPring Boot 4.0.9 available now&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;https://spring.io/blog/2026/10/23/spring-boot-4-1-2-available-now&quot;&gt;SPring Boot 4.1.2 availabel now&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;https://spring.io/blog/2026/10/23/spring-boot-4-2-0-RC1-available-now&quot;&gt;Spring Boot 4.2.0-RC1 available now&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;https://spring.io/blog/2026/10/23/spring-cloud-2025-1-4-has-been-released&quot;&gt;Spring Cloud 2025.1.4 (aka Northfields) Has Been Released&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;https://spring.io/blog/2026/10/23/spring-cloud-2026-0-0-RC1-has-been-released&quot;&gt;Spring Cloud 2026.0.0-RC1 (aka Paddington) Has Been Released&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;https://spring.io/blog/2026/10/23/spring-ldap-4&quot;&gt;Spring LDAP 4.2.0-RC1 available now&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;https://spring.io/blog/2026/10/23/spring-ldap-maintenance-releases&quot;&gt;Spring LDAP 4.0.6 and 4.1.2 available now&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;https://spring.io/blog/2026/10/23/spring-security-7&quot;&gt;Spring Security 7.2.0-RC1 available now&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;https://spring.io/blog/2026/10/23/spring-security-maintenance-releases&quot;&gt;Spring Security 7.0.8 and 7.1.2 available now&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;https://spring.io/blog/2026/10/23/spring-session-4&quot;&gt;Spring Session 4.2.0-RC1&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;Spring Modulith 2.2 RC1, 2.1.2, 2.0.9, and 1.4.14 released](&lt;a href=&quot;https://spring.io/blog/2026/10/23/spring-modulith-2-2-rc1-2-1-2-2-0-9-and-1-4-14-released&quot;&gt;https://spring.io/blog/2026/10/23/spring-modulith-2-2-rc1-2-1-2-2-0-9-and-1-4-14-released&lt;/a&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;https://spring.io/blog/2026/10/22/spring-batch-6&quot;&gt;Spring Modulith 6.1.0-RC1 and 6.0.6 available now!&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;https://spring.io/blog/2026/10/22/spring-data-2026-0-2-and-2025-1-8-released&quot;&gt;Spring Data 2026.0.2 and 2025.1.8 released&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;https://spring.io/blog/2026/10/22/spring-ws-5-0-3-available-now&quot;&gt;Spring Web Services 5.0.3 avaialble now&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&quot;https://spring.io/blog/2026/10/22/spring-ws-5-1-0-RC1-available-now&quot;&gt;Spring Web Services 5.1.0 Rc1 availablen ow&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;</content:encoded></item></channel></rss>
